@@ -14,77 +14,99 @@ class PeopleCounter:
         detection = ObjectDetection()
         tracking = ObjectTracking()
 
-        camera = cv2.VideoCapture("../video/TownCentre.avi")
+        camera = cv2.VideoCapture("../eksplore/datatest/DatatestKoTA207v1.avi")
+        fgbg = cv2.createBackgroundSubtractorMOG2(history=2000, varThreshold=100, detectShadows=True)
+
         tracker = cv2.MultiTracker_create()
         init_once = False
         peoples = []
         hog = cv2.HOGDescriptor()
         hog.setSVMDetector(cv2.HOGDescriptor_getDefaultPeopleDetector())
 
+
+        counter = 0
+        rangeBox = 8
+        flagCounter = False
         while camera.isOpened():
             start_time = time.time()
             ok, image = camera.read()
             image = preprocessing.image_resize(image, 640,480)
+            fgmask = fgbg.apply(image)
             if not ok:
                 print('no image to read')
                 break
 
-            (rects, weights) = hog.detectMultiScale(image, winStride=(2, 2),padding=(2, 2), scale=1.5)
+            (rects, weights) = hog.detectMultiScale(image, winStride=(4, 4),padding=(2, 2), scale=2.5)
             rects = np.array([[x, y, x + w, y + h] for (x, y, w, h) in rects])
             pick = non_max_suppression(rects, probs=None, overlapThresh=0.65)
-            # pick = rects
+            
             # draw the final bounding boxes
             for (xA, yA, xB, yB) in pick:
-
+                flag =False
                 if init_once :
                     for newbox in boxes:
                         p1 = (int(newbox[0]), int(newbox[1]))
-                        p2 = (xA,yA)
-                        if not tracking.isObjectSimilar((xA,yA), (xB,yB), 10):
-
-                            peoples.append((xA+10, yA+10,40,40))
-                            cv2.rectangle(image, (xA+10, yA+10), (xB, yB), (255, 255, 0), 2)
+                        p2 = (xA+rangeBox,yA+rangeBox)
+                        if tracking.isObjectSimilar(p1,p2,20):
+                            flag = True
                             break
 
-                        print("similarity = ",isObjectSimilar((xA,yA),(xB,yB),10))
+                    if flag == False:
+                        if tracking.initialCoord(yA+rangeBox,320/2):
+                            peoples.append((xA+rangeBox, yA+rangeBox,40,40))
+                            cv2.rectangle(image, (xA+rangeBox, yA+rangeBox), (xB, yB), (255, 255, 0), 2)
+                            init_once = False
+
                 else :
-                    peoples.append((xA+10, yA+10,40,40))
-                    cv2.rectangle(image, (xA+10, yA+10), (xB, yB), (255, 255, 0), 2)
+                    if tracking.initialCoord(yA+10,160) and flagCounter == False:
+                        peoples.append((xA+rangeBox, yA+rangeBox,40,40))
+                        cv2.rectangle(image, (xA+rangeBox, yA+rangeBox), (xB, yB), (255, 255, 0), 2)
 
                 print("---detect frame no ",1," runtime", (time.time() - start_time) ," seconds ---" )
+
 
 
             if not init_once:
             # if True:
                 for object in peoples:
-                    ok = tracker.add(cv2.TrackerKCF_create(), image, object)
-
-                peoples = []
+                    ok = tracker.add(cv2.TrackerKCF_create(), fgmask, object)
                 init_once = True
+                flagCounter = False
 
-            ok, boxes = tracker.update(image)
-            # print boxes
+            ok, boxes = tracker.update(fgmask)
+            print boxes
 
+            peoples = []
+            tempPeoples = []
             for newbox in boxes:
                 p1 = (int(newbox[0]), int(newbox[1]))
                 p2 = (int(newbox[0] + newbox[2]), int(newbox[1] + newbox[3]))
-                cv2.rectangle(image, p1, p2, (200,0,0), 2, 1)
-                peoples.append((newbox[0],newbox[1],40,40))
+                if tracking.initialCoord(p1[1],320/2) == False:
+                    counter +=1
+                    flagCounter = True
+                else : 
+                    cv2.rectangle(image, p1, p2, (200,0,0), 2, 1)
+                    tempPeoples.append((newbox[0],newbox[1],40,40))
 
+            if flagCounter:
+                del tracker
+                tracker = cv2.MultiTracker_create()
+                init_once = False
+                peoples = tempPeoples
+            
+            cv2.putText(image, "in :" + str(counter), (50,50), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0,255,0), 2)
             cv2.imshow('tracking', image)
 
-            # print tracker.getObjects()
-            # tracker.clear()
-            # tracker = cv2.MultiTracker_create()
 
             #- show runtime
             print("---program runtime", (time.time() - start_time) ," seconds ---" )
 
             k = cv2.waitKey(1)
             if k == 13 :
-                bbox3 = cv2.selectROI('tracking', image) # enter pressed
-                objects = [bbox3]
+                del tracker
+                tracker = cv2.MultiTracker_create()
                 init_once = False
+                peoples = [] 
             if k == 27 : break # esc pressed
 
 
@@ -152,4 +174,10 @@ class ObjectTracking:
         if(abs(xA-xB) < limit) and (abs(yA-yB) < limit):
             return True
         else:
+            return False
+
+    def initialCoord(self,y,limit):
+        if y < limit:
+            return True
+        else :
             return False
