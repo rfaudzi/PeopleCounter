@@ -3,18 +3,23 @@ from sklearn import svm
 import numpy as np
 from imutils.object_detection import non_max_suppression
 import time
+import rekap_pengunjung
 
 class PeopleCounter:
 
-    def __init__(self):
-        pass
+    def __init__(self, host, username, password, db):
+        self.host = host
+        self.username = username
+        self.password = password
+        self.db = db
 
     def counter(self):
         preprocessing = ImagePreprocessing()
         detection = ObjectDetection()
         tracking = ObjectTracking()
+        RekapPengunjung = rekap_pengunjung.RekapPengunjung(self.host, self.username, self.password, self.db)
 
-        camera = cv2.VideoCapture("../eksplore/datatest/DatatestKoTA207v1.avi")
+        camera = cv2.VideoCapture("../video/TownCentre.avi")
         fgbg = cv2.createBackgroundSubtractorMOG2(history=2000, varThreshold=100, detectShadows=True)
 
         tracker = cv2.MultiTracker_create()
@@ -39,7 +44,7 @@ class PeopleCounter:
             (rects, weights) = hog.detectMultiScale(image, winStride=(4, 4),padding=(2, 2), scale=2.5)
             rects = np.array([[x, y, x + w, y + h] for (x, y, w, h) in rects])
             pick = non_max_suppression(rects, probs=None, overlapThresh=0.65)
-            
+
             # draw the final bounding boxes
             for (xA, yA, xB, yB) in pick:
                 flag =False
@@ -69,12 +74,12 @@ class PeopleCounter:
             if not init_once:
             # if True:
                 for object in peoples:
-                    ok = tracker.add(cv2.TrackerKCF_create(), fgmask, object)
+                    ok = tracker.add(cv2.TrackerKCF_create(), image, object)
                 init_once = True
                 flagCounter = False
 
-            ok, boxes = tracker.update(fgmask)
-            print boxes
+            ok, boxes = tracker.update(image)
+            print (boxes)
 
             peoples = []
             tempPeoples = []
@@ -83,8 +88,9 @@ class PeopleCounter:
                 p2 = (int(newbox[0] + newbox[2]), int(newbox[1] + newbox[3]))
                 if tracking.initialCoord(p1[1],320/2) == False:
                     counter +=1
+                    RekapPengunjung.save()
                     flagCounter = True
-                else : 
+                else :
                     cv2.rectangle(image, p1, p2, (200,0,0), 2, 1)
                     tempPeoples.append((newbox[0],newbox[1],40,40))
 
@@ -93,7 +99,7 @@ class PeopleCounter:
                 tracker = cv2.MultiTracker_create()
                 init_once = False
                 peoples = tempPeoples
-            
+
             cv2.putText(image, "in :" + str(counter), (50,50), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0,255,0), 2)
             cv2.imshow('tracking', image)
 
@@ -106,7 +112,7 @@ class PeopleCounter:
                 del tracker
                 tracker = cv2.MultiTracker_create()
                 init_once = False
-                peoples = [] 
+                peoples = []
             if k == 27 : break # esc pressed
 
 
