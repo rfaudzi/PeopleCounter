@@ -37,6 +37,8 @@ class PeopleCounter:
         hog.setSVMDetector(cv2.HOGDescriptor_getDefaultPeopleDetector())
 
         counter = 0
+        boxes = []
+        tempBoxes = []
         while camera.isOpened():
             start_time = time.time()
             ok, image = camera.read()
@@ -74,7 +76,7 @@ class PeopleCounter:
 
                 print("---detect frame no ",1," runtime", (time.time() - start_time) ," seconds ---" )
 
-
+            tempBoxes = boxes
 
             if not init_once:
                 for object in peoples:
@@ -84,6 +86,33 @@ class PeopleCounter:
 
             ok, boxes = tracker.update(image)
             # print (boxes)
+
+            index = 0
+            current_object = boxes
+            flag_nonObject = False
+            print(boxes)
+            for current in current_object:
+                for old_object in tempBoxes:
+                    if np.array_equal(old_object, current):
+                        flag_nonObject = True
+                        print('index:',index)
+                        print('leng box:',len(boxes))
+                        boxes = np.delete(boxes, index, 0)
+                index += 1
+                if(flag_nonObject):
+                    index = 0
+
+            # print(peoples)
+            # print('boxes')
+            boxes = tuple(map(tuple, boxes))
+            # print(boxes)
+            if(flag_nonObject):
+                del tracker
+                tracker = cv2.MultiTracker_create()
+                for object in boxes:
+                    ok = tracker.add(cv2.TrackerKCF_create(), image, object)
+                init_once = True
+                ok, boxes = tracker.update(image)
 
             peoples = []
             tempPeoples = []
