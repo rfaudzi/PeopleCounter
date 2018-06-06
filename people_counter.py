@@ -15,7 +15,7 @@ class PeopleCounter:
         # self.counter = 0
         self.rangeBox = 5
         self.flagCounter = False
-        self.lineCounter= 320/2
+        self.lineCounter= int(320/2)
         self.lineThickness = 2
         self.widthBox = 60
         self.heightBox = 60
@@ -26,7 +26,7 @@ class PeopleCounter:
         tracking = ObjectTracking()
         RekapPengunjung = rekap_pengunjung.RekapPengunjung(self.host, self.username, self.password, self.db)
 
-        camera = cv2.VideoCapture("../eksplore/video/tes4.mp4")
+        camera = cv2.VideoCapture("../video/Datatest207v2.avi")
         # camera = cv2.VideoCapture("../video/TownCentre.avi")
         fgbg = cv2.createBackgroundSubtractorMOG2(history=2000, varThreshold=100, detectShadows=True)
 
@@ -182,7 +182,8 @@ class ObjectTracking:
         yA = coordA[1]
         xB = coordB[0]
         yB = coordB[1]
-        if(abs(xA-xB) < limit) and (abs(yA-yB) < limit):
+        if  (xB > (xA - limit)) and (xB < (xA + limit)) and \
+            (yB > (yA - limit) and (yB < (yA + (2 * limit)))):
             return True
         else:
             return False
