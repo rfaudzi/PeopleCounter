@@ -12,13 +12,6 @@ class PeopleCounter:
         self.username = username
         self.password = password
         self.db = db
-        # self.counter = 0
-        self.rangeBox = 5
-        self.flagCounter = False
-        self.lineCounter= int(320/2)
-        self.lineThickness = 2
-        self.widthBox = 60
-        self.heightBox = 60
 
     def counter(self):
         preprocessing = ImagePreprocessing()
@@ -27,7 +20,6 @@ class PeopleCounter:
         RekapPengunjung = rekap_pengunjung.RekapPengunjung(self.host, self.username, self.password, self.db)
 
         camera = cv2.VideoCapture("../video/Datatest207v2.avi")
-        # camera = cv2.VideoCapture("../video/TownCentre.avi")
         fgbg = cv2.createBackgroundSubtractorMOG2(history=2000, varThreshold=100, detectShadows=True)
 
         tracker = cv2.MultiTracker_create()
@@ -36,9 +28,10 @@ class PeopleCounter:
         hog = cv2.HOGDescriptor()
         hog.setSVMDetector(cv2.HOGDescriptor_getDefaultPeopleDetector())
 
+
         counter = 0
-        boxes = []
-        tempBoxes = []
+        rangeBox = 8
+        flagCounter = False
         while camera.isOpened():
             start_time = time.time()
             ok, image = camera.read()
@@ -58,83 +51,56 @@ class PeopleCounter:
                 if init_once :
                     for newbox in boxes:
                         p1 = (int(newbox[0]), int(newbox[1]))
-                        p2 = (xA+self.rangeBox,yA+self.rangeBox)
+                        p2 = (xA+rangeBox,yA+rangeBox)
                         if tracking.isObjectSimilar(p1,p2,20):
                             flag = True
                             break
 
                     if flag == False:
-                        if tracking.initialCoord(yA+self.rangeBox,self.lineCounter) and abs(yA-yB) < 150:
-                            peoples.append((xA+self.rangeBox, yA+self.rangeBox,self.widthBox,self.heightBox))
-                            cv2.rectangle(image, (xA+self.rangeBox, yA+self.rangeBox), (xB, yB), (255, 255, 0), 2)
+                        if tracking.initialCoord(yA+rangeBox,320/2):
+                            peoples.append((xA+rangeBox, yA+rangeBox,40,40))
+                            cv2.rectangle(image, (xA+rangeBox, yA+rangeBox), (xB, yB), (255, 255, 0), 2)
                             init_once = False
 
                 else :
-                    if tracking.initialCoord(yA+self.rangeBox,self.lineCounter) and self.flagCounter == False and abs(yA-yB) < 150:
-                        peoples.append((xA+self.rangeBox, yA+self.rangeBox,self.widthBox,self.heightBox))
-                        cv2.rectangle(image, (xA+self.rangeBox, yA+self.rangeBox), (xB, yB), (255, 255, 0), 2)
+                    if tracking.initialCoord(yA+10,160) and flagCounter == False:
+                        peoples.append((xA+rangeBox, yA+rangeBox,40,40))
+                        cv2.rectangle(image, (xA+rangeBox, yA+rangeBox), (xB, yB), (255, 255, 0), 2)
 
                 print("---detect frame no ",1," runtime", (time.time() - start_time) ," seconds ---" )
 
-            tempBoxes = boxes
+
 
             if not init_once:
+            # if True:
                 for object in peoples:
                     ok = tracker.add(cv2.TrackerKCF_create(), image, object)
                 init_once = True
-                self.flagCounter = False
+                flagCounter = False
 
             ok, boxes = tracker.update(image)
-            # print (boxes)
-
-            index = 0
-            current_object = boxes
-            flag_nonObject = False
-            print(boxes)
-            for current in current_object:
-                for old_object in tempBoxes:
-                    if np.array_equal(old_object, current):
-                        flag_nonObject = True
-                        print('index:',index)
-                        print('leng box:',len(boxes))
-                        boxes = np.delete(boxes, index, 0)
-                index += 1
-                if(flag_nonObject):
-                    index = 0
-
-            # print(peoples)
-            # print('boxes')
-            boxes = tuple(map(tuple, boxes))
-            # print(boxes)
-            if(flag_nonObject):
-                del tracker
-                tracker = cv2.MultiTracker_create()
-                for object in boxes:
-                    ok = tracker.add(cv2.TrackerKCF_create(), image, object)
-                init_once = True
-                ok, boxes = tracker.update(image)
+            print (boxes)
 
             peoples = []
             tempPeoples = []
             for newbox in boxes:
                 p1 = (int(newbox[0]), int(newbox[1]))
                 p2 = (int(newbox[0] + newbox[2]), int(newbox[1] + newbox[3]))
-                if tracking.initialCoord(p1[1],self.lineCounter) == False:
+                if tracking.initialCoord(p1[1],320/2) == False:
                     counter +=1
                     RekapPengunjung.save()
-                    self.flagCounter = True
+                    flagCounter = True
                 else :
                     cv2.rectangle(image, p1, p2, (200,0,0), 2, 1)
-                    tempPeoples.append((newbox[0],newbox[1],self.widthBox,self.heightBox))
+                    tempPeoples.append((newbox[0],newbox[1],40,40))
 
-            if self.flagCounter:
+            if flagCounter:
                 del tracker
                 tracker = cv2.MultiTracker_create()
                 init_once = False
                 peoples = tempPeoples
 
             cv2.putText(image, "in :" + str(counter), (50,50), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0,255,0), 2)
-            cv2.line(image, (0, self.lineCounter), (640, self.lineCounter), (0,255,0), self.lineThickness)
             cv2.imshow('tracking', image)
 
 
@@ -211,8 +177,7 @@ class ObjectTracking:
         yA = coordA[1]
         xB = coordB[0]
         yB = coordB[1]
-        if  (xB > (xA - limit)) and (xB < (xA + limit)) and \
-            (yB > (yA - limit) and (yB < (yA + (2 * limit)))):
+        if(abs(xA-xB) < limit) and (abs(yA-yB) < limit):
             return True
         else:
             return False
